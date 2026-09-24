@@ -73,6 +73,15 @@ export interface CandleStats {
   closes: number[]; // downsampled, oldest first
 }
 
+/** Longer context from daily candles (e.g. distance from the 1-year high). */
+export interface RangeStats {
+  days: number;
+  high: number;
+  low: number;
+  changePct: number;
+  fromHighPct: number; // negative = below the high
+}
+
 export interface MarketSnapshot {
   provider: string;
   underlying: string;
@@ -80,6 +89,8 @@ export interface MarketSnapshot {
   assetClass: AssetClass | null;
   ticker: TickerSnapshot | null;
   candles: CandleStats | null;
+  /** Optional: absent in snapshots saved before it existed. */
+  daily?: RangeStats | null;
   fetchedAt: string;
   error: string | null;
 }

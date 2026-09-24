@@ -16,6 +16,15 @@ export const MAX_IDEA_CHARS = 1200;
 
 type Emit = (e: StreamEvent) => void;
 
+/** Models sometimes pack several tagged facts into one string; show one fact per bullet. */
+export function splitEvidence(items: string[]): string[] {
+  return items
+    .flatMap((s) => s.split(/\s+(?=\[(?:Bitget market data|General knowledge)\])/i))
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 export function inputHash(idea: string, model: string): string {
   return createHash("sha256").update(`${PROMPT_VERSION}|${model}|${normalizeIdea(idea)}`).digest("hex");
 }
@@ -115,7 +124,12 @@ export async function runStressTest(ideaRaw: string, emit: Emit, signal?: AbortS
       const parsedJson = QwenAnalysisSchema.parse(extractJsonObject(out.content));
       // Re-number ids so the UI and DB are consistent regardless of what the model used.
       const idMap = new Map(parsedJson.assumptions.map((a, i) => [a.id, `A${i + 1}`]));
-      const list = parsedJson.assumptions.map((a, i) => ({ ...a, id: `A${i + 1}` }));
+      const list = parsedJson.assumptions.map((a, i) => ({
+        ...a,
+        id: `A${i + 1}`,
+        evidenceFor: splitEvidence(a.evidenceFor),
+        evidenceAgainst: splitEvidence(a.evidenceAgainst),
+      }));
       const guard = guardVerdict(parsedJson.verdict, list);
       if (guard.note) notices.push(guard.note);
       result = {

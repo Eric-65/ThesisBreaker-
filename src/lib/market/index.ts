@@ -1,5 +1,5 @@
 import "server-only";
-import type { AssetClass, CandleStats, MarketSnapshot } from "@/lib/analysis/types";
+import type { AssetClass, CandleStats, MarketSnapshot, RangeStats } from "@/lib/analysis/types";
 import { BitgetSpotProvider } from "./bitget";
 import type { Candle, MarketDataProvider } from "./provider";
 import { resolveSymbol } from "./symbols";
@@ -24,6 +24,18 @@ function candleStats(candles: Candle[], granularity: string): CandleStats | null
   };
 }
 
+function rangeStats(candles: Candle[], last: number): RangeStats | null {
+  if (candles.length < 2) return null;
+  const high = Math.max(...candles.map((c) => c.high));
+  return {
+    days: candles.length,
+    high,
+    low: Math.min(...candles.map((c) => c.low)),
+    changePct: (last / candles[0].open - 1) * 100,
+    fromHighPct: (last / high - 1) * 100,
+  };
+}
+
 /** Price evidence for one underlying. Never throws: failures land in `error`. */
 export async function getMarketSnapshot(
   underlying: string,
@@ -44,9 +56,11 @@ export async function getMarketSnapshot(
     if (!resolved) {
       return { ...base, error: `${underlying} is not listed as a tradable USDT spot pair on Bitget` };
     }
-    const [ticker, candles] = await Promise.all([
+    const [ticker, candles, daily] = await Promise.all([
       marketData.getTicker(resolved.exchangeSymbol),
       marketData.getCandles(resolved.exchangeSymbol, { granularity: "1h", limit: 72 }),
+      // Longer context is a bonus: never fail the snapshot over it.
+      marketData.getCandles(resolved.exchangeSymbol, { granularity: "1day", limit: 365 }).catch(() => []),
     ]);
     const spread =
       ticker.bid && ticker.ask && ticker.ask > 0
@@ -66,6 +80,7 @@ export async function getMarketSnapshot(
         ts: ticker.ts,
       },
       candles: candleStats(candles, "1h"),
+      daily: rangeStats(daily, ticker.last),
     };
   } catch (err) {
     return { ...base, error: (err as Error).message };

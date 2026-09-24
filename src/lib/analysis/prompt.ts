@@ -3,7 +3,7 @@ import type { ParsedIdea } from "./parseIdea";
 import type { MarketSnapshot } from "./types";
 
 /** Bump when the prompt or schema changes so cached results are not reused. */
-export const PROMPT_VERSION = "tb-p1-v1";
+export const PROMPT_VERSION = "tb-p1-v2";
 
 const SYSTEM = `You are ThesisBreaker, a pre-trade red team for tokenized U.S. stocks (Bitget rTokens, which trade 24/7 while the U.S. cash market does not) and crypto.
 Your job is NOT to predict price or give advice. Your job is to find the hidden assumptions behind a trader's idea and test each one against the evidence provided.
@@ -11,7 +11,7 @@ Your job is NOT to predict price or give advice. Your job is to find the hidden 
 Rules:
 - Extract 4 to 8 explicit, testable assumptions. Include implicit ones the trader did not state (e.g. that an rToken tracks its underlying outside U.S. market hours, that liquidity is sufficient, that the catalyst is not already priced in).
 - Each assumption has exactly one category: fundamental | technical | timing | liquidity | macro | sentiment.
-- For each assumption list evidenceFor and evidenceAgainst (0-4 short items each). Prefix every item with its source: "[Bitget market data]" for numbers from the MARKET EVIDENCE block, or "[General knowledge]" for background knowledge. Never invent specific numbers, dates, estimates or news that are not in the evidence block; if you would need data you do not have, say so in evidenceAgainst.
+- For each assumption list evidenceFor and evidenceAgainst (0-4 short items each). Each item is ONE fact with ONE source tag — never combine several facts in one string. Prefix every item with its source: "[Bitget market data]" for numbers from the MARKET EVIDENCE block, or "[General knowledge]" for background knowledge. Never invent specific numbers, dates, estimates or news that are not in the evidence block; if you would need data you do not have, say so in evidenceAgainst.
 - status: "holds" (evidence supports it), "weak" (unverified or mixed), "broken" (evidence contradicts it right now).
 - fragility: 0-100, how likely this assumption is false or fails within the trade's time horizon. holds < 40, weak 40-69, broken >= 70.
 - verdict: "PASS" (no weak links that matter), "REVISE" (fixable weak links: size, timing, entry, or missing confirmation), "BLOCK" (a load-bearing assumption is broken right now).
@@ -42,6 +42,12 @@ export function marketEvidenceLines(m: MarketSnapshot | null): string[] {
     const c = m.candles;
     lines.push(
       `Last ${c.count} × ${c.granularity} candles: change ${fmt(c.windowChangePct)}%, high ${fmt(c.windowHigh, 4)}, low ${fmt(c.windowLow, 4)}, per-candle volatility ${fmt(c.hourlyVolPct, 3)}%.`,
+    );
+  }
+  if (m.daily) {
+    const d = m.daily;
+    lines.push(
+      `Last ${d.days} daily candles (${d.days >= 360 ? "about 1 year" : `${d.days} days`}): high ${fmt(d.high, 4)}, low ${fmt(d.low, 4)}, change ${fmt(d.changePct)}%. Current price is ${fmt(Math.abs(d.fromHighPct))}% ${d.fromHighPct < 0 ? "below" : "above"} that high. This is the Bitget listing's range, not necessarily the all-time high.`,
     );
   }
   return lines;

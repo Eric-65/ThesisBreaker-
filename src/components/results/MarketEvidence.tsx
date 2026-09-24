@@ -18,6 +18,10 @@ function Sparkline({ values }: { values: number[] }) {
 
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { maximumFractionDigits: d });
 
+/** Liquid pairs have spreads far below 0.01%, so show basis points instead of "0%". */
+const fmtSpread = (pct: number) =>
+  pct * 100 < 0.01 ? "< 0.01 bps" : pct < 0.01 ? `${fmt(pct * 100, 2)} bps` : `${fmt(pct, 3)}%`;
+
 export function MarketEvidence({ market }: { market: MarketSnapshot | null }) {
   return (
     <section className="glass p-5" aria-labelledby="market-heading">
@@ -40,7 +44,18 @@ export function MarketEvidence({ market }: { market: MarketSnapshot | null }) {
             </span>
           </div>
           <p className="num mt-1 text-2xl text-ink">{fmt(market.ticker.last, 4)}</p>
-          {market.candles && <Sparkline values={market.candles.closes} />}
+          {market.candles && (
+            <div className="mt-2">
+              <p className="num flex justify-between text-[11px] text-muted">
+                <span>{market.candles.count}h trend · 1h candles</span>
+                <span className={market.candles.windowChangePct >= 0 ? "text-pass" : "text-block"}>
+                  {market.candles.windowChangePct >= 0 ? "+" : ""}
+                  {fmt(market.candles.windowChangePct)}%
+                </span>
+              </p>
+              <Sparkline values={market.candles.closes} />
+            </div>
+          )}
           <dl className="num mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <dt className="text-muted">24h range</dt>
             <dd className="text-right">{fmt(market.ticker.low24h, 4)} – {fmt(market.ticker.high24h, 4)}</dd>
@@ -49,13 +64,26 @@ export function MarketEvidence({ market }: { market: MarketSnapshot | null }) {
             {market.ticker.spreadPct !== null && (
               <>
                 <dt className="text-muted">Spread</dt>
-                <dd className="text-right">{fmt(market.ticker.spreadPct, 3)}%</dd>
+                <dd className="text-right">{fmtSpread(market.ticker.spreadPct)}</dd>
               </>
             )}
             {market.candles && (
               <>
-                <dt className="text-muted">{market.candles.count}h change</dt>
-                <dd className="text-right">{fmt(market.candles.windowChangePct)}%</dd>
+                <dt className="text-muted">{market.candles.count}h range</dt>
+                <dd className="text-right">
+                  {fmt(market.candles.windowLow, 4)} – {fmt(market.candles.windowHigh, 4)}
+                </dd>
+              </>
+            )}
+            {market.daily && (
+              <>
+                <dt className="text-muted">{market.daily.days >= 360 ? "1y" : `${market.daily.days}d`} high</dt>
+                <dd className="text-right">
+                  {fmt(market.daily.high, 4)}{" "}
+                  <span className="text-muted">({fmt(market.daily.fromHighPct)}%)</span>
+                </dd>
+                <dt className="text-muted">{market.daily.days >= 360 ? "1y" : `${market.daily.days}d`} low</dt>
+                <dd className="text-right">{fmt(market.daily.low, 4)}</dd>
               </>
             )}
           </dl>

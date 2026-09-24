@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Target } from "lucide-react";
 import type { Assumption, Verdict } from "@/lib/analysis/types";
 import { CountUp } from "@/components/ui/CountUp";
-import { VerdictBadge } from "./Badges";
+import { StatusBadge } from "./Badges";
 import { CATEGORY_LABEL, VERDICT_META } from "./meta";
 
 // Crack paths radiating from an impact point near the verdict word (viewBox 0 0 100 60).
@@ -121,7 +121,7 @@ export function VerdictPanel({
               <p className="mt-2 text-lg leading-snug text-ink">{weakest.text}</p>
               <p className="num mt-2 text-sm text-muted">
                 fragility {weakest.fragility}/100 <span className="mx-1">·</span>
-                <VerdictBadge verdict={verdict} />
+                <StatusBadge status={weakest.status} />
               </p>
             </div>
           )}
