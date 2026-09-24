@@ -1,0 +1,18 @@
+import { alpaca, demoAlpaca, isAlpacaConfigured } from "@/lib/alpaca";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  if (!isAlpacaConfigured()) {
+    return Response.json({ ok: true, mode: "demo", data: demoAlpaca.positions() });
+  }
+  try {
+    const data = await alpaca.getPositions();
+    return Response.json({ ok: true, mode: "live", data });
+  } catch (err) {
+    return Response.json(
+      { ok: false, mode: "demo", data: demoAlpaca.positions(), error: (err as Error).message },
+      { status: 200 },
+    );
+  }
+}
