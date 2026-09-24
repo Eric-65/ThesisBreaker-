@@ -1,13 +1,20 @@
-import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { getDb, isDbConfigured } from "@/db";
+import { isQwenConfigured } from "@/lib/qwen";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  try {
-    await db.execute(sql`select 1`);
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 500 });
+  let db = false;
+  if (isDbConfigured()) {
+    try {
+      await getDb().execute(sql`select 1`);
+      db = true;
+    } catch {
+      db = false;
+    }
   }
+  // Report only booleans — never configuration values.
+  const qwen = isQwenConfigured();
+  return Response.json({ ok: db, db, qwen, engine: qwen ? "qwen" : "offline" }, { status: db ? 200 : 503 });
 }

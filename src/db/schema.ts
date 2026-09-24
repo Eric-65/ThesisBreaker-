@@ -1,80 +1,85 @@
 import {
+  index,
+  integer,
+  jsonb,
   pgTable,
   text,
-  integer,
   timestamp,
-  jsonb,
   uuid,
-  numeric,
 } from "drizzle-orm/pg-core";
 
-export const theses = pgTable("theses", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  symbol: text("symbol").notNull(),
-  assetType: text("asset_type").notNull().default("STOCK"), // STOCK|ETF|CRYPTO|NFT_COLLECTION
-  direction: text("direction").notNull(), // "long" | "short"
-  timeHorizon: text("time_horizon").notNull().default("3-6M"),
-  positionSize: text("position_size").notNull().default("1000"),
-  riskTolerance: text("risk_tolerance").notNull().default("moderate"),
-  originalText: text("original_text").notNull(),
-  catalysts: text("catalysts"),
-  expectedOutcome: text("expected_outcome"),
+/**
+ * One stress-tested trade idea. `originalText` is what the trader typed; the
+ * rest is the analysis. Rows created before Phase 1 have a null `verdict` and
+ * are hidden from History.
+ */
+export const theses = pgTable(
+  "theses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    symbol: text("symbol"), // underlying ticker, e.g. "NVDA" or "BTC"
+    assetType: text("asset_type"), // "stock_token" | "crypto" | null
+    direction: text("direction"), // "long" | "short" | "neutral"
+    timeHorizon: text("time_horizon"),
+    originalText: text("original_text").notNull(),
 
-  // Immutable snapshot of first analysis (WHAT I BELIEVED THEN)
-  originalAnalysis: jsonb("original_analysis").notNull(),
-  originalExtraction: jsonb("original_extraction").notNull(),
-  initialScore: integer("initial_score").notNull(),
+    verdict: text("verdict"), // "PASS" | "REVISE" | "BLOCK"
+    fragility: integer("fragility"), // 0-100, overall
+    weakestAssumption: text("weakest_assumption"),
+    whatMustBeTrue: jsonb("what_must_be_true").$type<string[]>(),
+    summary: text("summary"),
+    marketSnapshot: jsonb("market_snapshot"),
+    engine: text("engine"), // "qwen" | "offline"
+    model: text("model"),
+    inputHash: text("input_hash"),
 
-  // Latest analysis (WHAT THE EVIDENCE SHOWS NOW)
-  analysis: jsonb("analysis").notNull(),
-  currentScore: integer("current_score").notNull(),
-  status: text("status").notNull().default("CHALLENGED"),
-  paperOrderId: text("paper_order_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("theses_input_hash_idx").on(t.inputHash),
+    index("theses_created_at_idx").on(t.createdAt),
+  ],
+);
 
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const assumptions = pgTable(
+  "assumptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    thesisId: uuid("thesis_id")
+      .notNull()
+      .references(() => theses.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    text: text("text").notNull(),
+    category: text("category").notNull(), // fundamental|technical|timing|liquidity|macro|sentiment
+    evidenceFor: jsonb("evidence_for").$type<string[]>().notNull(),
+    evidenceAgainst: jsonb("evidence_against").$type<string[]>().notNull(),
+    status: text("status").notNull(), // holds|weak|broken
+    fragility: integer("fragility").notNull(), // 0-100
+  },
+  (t) => [index("assumptions_thesis_id_idx").on(t.thesisId)],
+);
 
-export const orders = pgTable("orders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  thesisId: uuid("thesis_id").notNull().references(() => theses.id, { onDelete: "cascade" }),
-  alpacaOrderId: text("alpaca_order_id"),
-  clientOrderId: text("client_order_id").notNull(),
-  symbol: text("symbol").notNull(),
-  side: text("side").notNull(), // buy | sell
-  qty: numeric("qty").notNull(),
-  orderType: text("order_type").notNull().default("market"),
-  status: text("status").notNull(), // filled | pending | rejected | ...
-  estimatedPrice: numeric("estimated_price"),
-  estimatedNotional: numeric("estimated_notional"),
-  mode: text("mode").notNull().default("demo"), // demo | live
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const monitoringEvents = pgTable("monitoring_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  thesisId: uuid("thesis_id").notNull().references(() => theses.id, { onDelete: "cascade" }),
-  kind: text("kind").notNull(),
-  message: text("message").notNull(),
-  scoreBefore: integer("score_before"),
-  scoreAfter: integer("score_after"),
-  meta: jsonb("meta"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+/** Token accounting for every Qwen request (and cache hits, at zero tokens). */
+export const qwenCalls = pgTable(
+  "qwen_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    thesisId: uuid("thesis_id").references(() => theses.id, { onDelete: "set null" }),
+    inputHash: text("input_hash"),
+    model: text("model").notNull(),
+    status: text("status").notNull(), // ok | error | cache_hit
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    reasoningTokens: integer("reasoning_tokens"),
+    totalTokens: integer("total_tokens"),
+    latencyMs: integer("latency_ms"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("qwen_calls_created_at_idx").on(t.createdAt)],
+);
 
 export type Thesis = typeof theses.$inferSelect;
-export type NewThesis = typeof theses.$inferInsert;
-export type Order = typeof orders.$inferSelect;
-export type NewOrder = typeof orders.$inferInsert;
-export type MonitoringEvent = typeof monitoringEvents.$inferSelect;
-export type NewMonitoringEvent = typeof monitoringEvents.$inferInsert;
-
-export const watchlist = pgTable("watchlist", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  symbol: text("symbol").notNull().unique(),
-  assetType: text("asset_type").notNull(), // STOCK|ETF|CRYPTO|NFT_COLLECTION
-  displayName: text("display_name").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export type WatchlistItem = typeof watchlist.$inferSelect;
+export type AssumptionRow = typeof assumptions.$inferSelect;
+export type QwenCall = typeof qwenCalls.$inferSelect;
