@@ -22,6 +22,13 @@
       "when": 1790256898986,
       "tag": "0002_phase1_stress_test",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794326781417,
+      "tag": "0003_users_and_auth",
+      "breakpoints": true
     }
   ]
 }

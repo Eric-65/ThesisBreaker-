@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { SaveHistoryPrompt } from "@/components/auth/SaveHistoryPrompt";
 import { EXAMPLE_IDEA } from "@/components/home/example";
 import { ResultView } from "@/components/results/ResultView";
 import { StageLog } from "./StageLog";
@@ -144,6 +145,7 @@ export function Workbench() {
       <div ref={resultRef} className="scroll-mt-32">
         {t.phase === "done" && t.result && <ResultView result={t.result} />}
       </div>
+      <SaveHistoryPrompt show={t.phase === "done" && Boolean(t.result?.id)} />
     </div>
   );
 }

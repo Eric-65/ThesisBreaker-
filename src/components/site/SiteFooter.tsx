@@ -12,6 +12,11 @@ export function SiteFooter() {
             <p className="text-xs">
               Research tool, not financial advice. Verdicts describe assumptions, not future prices. You make every trading decision.
             </p>
+            <p className="text-xs">
+              <span className="text-ink/80">Privacy:</span> we set one anonymous cookie (a random ID) so your stress tests
+              appear in your history and we can count visits. We store the trade ideas you submit and their analyses, plus
+              your email if you choose to sign in. No raw IP addresses, no ad or third-party trackers.
+            </p>
           </div>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">

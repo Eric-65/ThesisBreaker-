@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { PublicStats } from "@/lib/stats";
 import backdrop from "../../../public/images/circuit-backdrop.webp";
 import { MetalCubes } from "./MetalCubes";
 
@@ -12,7 +13,11 @@ const rise = {
   show: (i: number) => ({ opacity: 1, y: 0, transition: { delay: 0.08 * i, duration: 0.6, ease: [0.22, 1, 0.36, 1] as const } }),
 };
 
-export function Hero() {
+const fmt = new Intl.NumberFormat("en-US");
+
+export function Hero({ stats }: { stats: PublicStats | null }) {
+  // Real counts only; hidden until there is something to show.
+  const showStats = Boolean(stats && stats.users > 0);
   return (
     <section className="relative overflow-hidden">
       <Image
@@ -51,12 +56,28 @@ export function Hero() {
           </motion.p>
           <motion.div className="mt-8 flex flex-wrap gap-3" variants={rise} initial="hidden" animate="show" custom={3}>
             <Link href="/analyze" className="btn btn-primary">
-              Stress-test a trade <ArrowRight className="h-4 w-4" aria-hidden />
+              Try it free <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
             <Link href="#how" className="btn btn-ghost">
               How it works
             </Link>
           </motion.div>
+          {showStats && stats && (
+            <motion.p
+              className="mt-4 flex items-center gap-2 text-sm text-muted"
+              variants={rise}
+              initial="hidden"
+              animate="show"
+              custom={3.5}
+            >
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-cyan shadow-[0_0_8px_var(--color-cyan)]" />
+              <span>
+                <span className="num text-ink">{fmt.format(stats.users)}</span> {stats.users === 1 ? "trader" : "traders"} ·{" "}
+                <span className="num text-ink">{fmt.format(stats.analyses)}</span>{" "}
+                {stats.analyses === 1 ? "thesis" : "theses"} stress-tested
+              </span>
+            </motion.p>
+          )}
           <motion.dl
             className="mt-10 grid max-w-md grid-cols-3 gap-4 border-t border-line pt-6 text-xs text-muted"
             variants={rise}

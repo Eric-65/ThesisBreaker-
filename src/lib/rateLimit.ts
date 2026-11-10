@@ -1,7 +1,11 @@
 import "server-only";
+import { and, count, eq, gte } from "drizzle-orm";
+import { getDb } from "@/db";
+import { theses } from "@/db/schema";
 
-// Fixed-window, in-memory limiter. Good enough for a single-instance demo
-// deployment; protects the Qwen credit budget from a runaway client.
+// Fixed-window, in-memory limiter for short bursts. Per-instance only, so the
+// hourly per-visitor cap below (backed by Postgres) is the one that holds
+// across serverless instances.
 const hits = new Map<string, { windowStart: number; count: number }>();
 
 export function rateLimit(key: string, limit: number, windowMs: number): { ok: boolean; retryAfterS: number } {
@@ -21,6 +25,11 @@ export function rateLimit(key: string, limit: number, windowMs: number): { ok: b
   return { ok: true, retryAfterS: 0 };
 }
 
-export function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+/** Saved analyses by this user in the trailing window (durable, cross-instance). */
+export async function recentAnalysesCount(userId: string, windowMs: number): Promise<number> {
+  const [row] = await getDb()
+    .select({ n: count() })
+    .from(theses)
+    .where(and(eq(theses.userId, userId), gte(theses.createdAt, new Date(Date.now() - windowMs))));
+  return row?.n ?? 0;
 }
