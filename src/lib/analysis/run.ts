@@ -34,7 +34,13 @@ export function inputHash(idea: string, model: string): string {
  * exactly one `result` event (Qwen, cached Qwen, or offline heuristic) unless
  * the request itself is cancelled.
  */
-export async function runStressTest(ideaRaw: string, emit: Emit, signal?: AbortSignal): Promise<void> {
+export async function runStressTest(
+  ideaRaw: string,
+  emit: Emit,
+  signal?: AbortSignal,
+  ctx: { userId?: string | null } = {},
+): Promise<void> {
+  const userId = ctx.userId ?? null;
   const idea = ideaRaw.trim().slice(0, MAX_IDEA_CHARS);
   const cfg = qwenConfig();
   const hash = inputHash(idea, cfg.model);
@@ -54,10 +60,17 @@ export async function runStressTest(ideaRaw: string, emit: Emit, signal?: AbortS
   if (cfg.apiKey && dbOn) {
     emit({ type: "step", id: "cache", status: "active" });
     try {
-      const hit = await findCachedResult(hash, CACHE_MAX_AGE_MS);
-      if (hit) {
+      const cached = await findCachedResult(hash, CACHE_MAX_AGE_MS);
+      if (cached) {
+        let hit = cached.result;
+        // Someone else's cached run: give this user their own copy so it shows in their history.
+        if (userId && cached.userId !== userId) {
+          const { id: _id, createdAt: _at, cached: _c, notices: _n, ...rest } = hit;
+          const saved = await saveResult(rest, hash, userId);
+          hit = { ...hit, ...saved };
+        }
         emit({ type: "step", id: "cache", status: "done", detail: "reused a Qwen result from the last 24h" });
-        await logQwenCall({ thesisId: hit.id, inputHash: hash, model: cfg.model, status: "cache_hit" });
+        await logQwenCall({ thesisId: hit.id, userId, inputHash: hash, model: cfg.model, status: "cache_hit" });
         emit({ type: "result", result: { ...hit, cached: true, notices: ["Cached result — no Qwen credits spent."] } });
         return;
       }
@@ -188,7 +201,7 @@ export async function runStressTest(ideaRaw: string, emit: Emit, signal?: AbortS
   if (dbOn) {
     emit({ type: "step", id: "save", status: "active" });
     try {
-      ({ id, createdAt } = await saveResult(result, hash));
+      ({ id, createdAt } = await saveResult(result, hash, userId));
       emit({ type: "step", id: "save", status: "done" });
     } catch (err) {
       emit({ type: "step", id: "save", status: "failed", detail: (err as Error).message });
@@ -198,7 +211,7 @@ export async function runStressTest(ideaRaw: string, emit: Emit, signal?: AbortS
     emit({ type: "step", id: "save", status: "skipped", detail: "DATABASE_URL not set" });
     notices.push("History is disabled because DATABASE_URL is not set.");
   }
-  if (pendingLog && dbOn) await logQwenCall({ ...pendingLog, thesisId: id });
+  if (pendingLog && dbOn) await logQwenCall({ ...pendingLog, thesisId: id, userId });
 
   emit({ type: "result", result: { ...result, id, createdAt, cached: false, notices } });
 }

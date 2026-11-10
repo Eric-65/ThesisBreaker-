@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AccountMenu } from "@/components/auth/AccountMenu";
 import { Logo } from "@/components/ui/Logo";
 
 const NAV = [
@@ -39,6 +40,7 @@ export function SiteHeader() {
               </Link>
             );
           })}
+          <AccountMenu />
         </nav>
       </div>
     </header>

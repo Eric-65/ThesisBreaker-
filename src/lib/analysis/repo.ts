@@ -15,13 +15,18 @@ import type {
 
 type NewResult = Omit<StressTestResult, "id" | "createdAt" | "cached" | "notices">;
 
-export async function saveResult(r: NewResult, inputHash: string): Promise<{ id: string; createdAt: string }> {
+export async function saveResult(
+  r: NewResult,
+  inputHash: string,
+  userId: string | null = null,
+): Promise<{ id: string; createdAt: string }> {
   const db = getDb();
   return db.transaction(async (tx) => {
     const weakest = r.assumptions.find((a) => a.id === r.weakestAssumptionId);
     const [row] = await tx
       .insert(theses)
       .values({
+        userId,
         symbol: r.symbol,
         assetType: r.assetClass,
         direction: r.direction,
@@ -104,10 +109,13 @@ export async function getResult(id: string): Promise<StressTestResult | null> {
 }
 
 /** Most recent Qwen-produced result for the same normalized input, within `maxAgeMs`. */
-export async function findCachedResult(inputHash: string, maxAgeMs: number): Promise<StressTestResult | null> {
+export async function findCachedResult(
+  inputHash: string,
+  maxAgeMs: number,
+): Promise<{ result: StressTestResult; userId: string | null } | null> {
   const db = getDb();
   const [t] = await db
-    .select({ id: theses.id })
+    .select({ id: theses.id, userId: theses.userId })
     .from(theses)
     .where(
       and(
@@ -119,7 +127,9 @@ export async function findCachedResult(inputHash: string, maxAgeMs: number): Pro
     )
     .orderBy(desc(theses.createdAt))
     .limit(1);
-  return t ? getResult(t.id) : null;
+  if (!t) return null;
+  const result = await getResult(t.id);
+  return result ? { result, userId: t.userId } : null;
 }
 
 export interface HistoryRow {
@@ -133,7 +143,8 @@ export interface HistoryRow {
   createdAt: string;
 }
 
-export async function listHistory(verdict?: Verdict, limit = 100): Promise<HistoryRow[]> {
+/** One user's past verdicts, newest first. */
+export async function listHistory(userId: string, verdict?: Verdict, limit = 100): Promise<HistoryRow[]> {
   const db = getDb();
   const rows = await db
     .select({
@@ -147,7 +158,12 @@ export async function listHistory(verdict?: Verdict, limit = 100): Promise<Histo
       createdAt: theses.createdAt,
     })
     .from(theses)
-    .where(verdict ? eq(theses.verdict, verdict) : inArray(theses.verdict, ["PASS", "REVISE", "BLOCK"]))
+    .where(
+      and(
+        eq(theses.userId, userId),
+        verdict ? eq(theses.verdict, verdict) : inArray(theses.verdict, ["PASS", "REVISE", "BLOCK"]),
+      ),
+    )
     .orderBy(desc(theses.createdAt))
     .limit(limit);
   return rows.map((r) => ({
@@ -161,6 +177,7 @@ export async function listHistory(verdict?: Verdict, limit = 100): Promise<Histo
 
 export async function logQwenCall(entry: {
   thesisId?: string | null;
+  userId?: string | null;
   inputHash: string;
   model: string;
   status: "ok" | "error" | "cache_hit";
@@ -173,6 +190,7 @@ export async function logQwenCall(entry: {
       .insert(qwenCalls)
       .values({
         thesisId: entry.thesisId ?? null,
+        userId: entry.userId ?? null,
         inputHash: entry.inputHash,
         model: entry.model,
         status: entry.status,

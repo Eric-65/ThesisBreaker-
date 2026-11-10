@@ -27,6 +27,13 @@ npm run dev
 | `QWEN_ENABLE_THINKING` | `true`/`false`. Thinking tokens are billed as output. |
 | `QWEN_TIMEOUT_MS` | Per-request timeout, default `45000`. |
 | `DATABASE_URL` | Postgres connection string. Without it, analysis still runs but history is off. |
+| `AUTH_SECRET` | Auth.js signing/encryption secret (`npx auth secret`). Required for sign-in. |
+| `AUTH_URL` | Optional. Canonical site URL; only needed outside Vercel or behind a proxy. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth client. Redirect URI: `https://<domain>/api/auth/callback/google`. |
+| `AUTH_RESEND_KEY` / `AUTH_EMAIL_FROM` | Resend API key and verified sender for email magic links. |
+| `IP_HASH_SALT` | Optional salt for hashed-IP rate-limit keys (falls back to `AUTH_SECRET`). |
+
+Sign-in is optional and turns on only when `AUTH_SECRET`, `DATABASE_URL` and at least one provider (Google or Resend) are configured; otherwise the app runs anonymously.
 
 No variable uses the `NEXT_PUBLIC_` prefix; nothing is exposed to the browser.
 
@@ -38,6 +45,14 @@ No variable uses the `NEXT_PUBLIC_` prefix; nothing is exposed to the browser.
 - `src/lib/analysis/heuristic.ts` — deterministic offline fallback, clearly labeled in the UI.
 - `src/lib/market/` — `MarketDataProvider` interface + Bitget public spot v2 implementation. Symbols are resolved against Bitget's live symbol list, never guessed. `FundamentalsProvider` is the Phase 2 extension point.
 - Token usage for every Qwen call (and cache hits) is logged in `qwen_calls`.
+
+## Visitors, accounts & stats
+
+- **Anonymous visitors.** `src/proxy.ts` gives each browser an httpOnly, `SameSite=Lax` (and `Secure` in production) `tb_vid` cookie holding a random UUID (1-year expiry). A visit starts when the sliding 30-minute `tb_seen` cookie is missing; the proxy then upserts the `users` row (`last_seen_at`, and `visit_count` at most once per 30 min — enforced in SQL). Bots, crawlers, link unfurlers and scripted clients are skipped by user-agent.
+- **Ownership.** Every saved analysis (`theses.user_id`) and Qwen call (`qwen_calls.user_id`) belongs to a user row. `/history` lists only the current visitor's or signed-in account's analyses. Individual verdict pages (`/history/<uuid>`) stay viewable by link.
+- **Optional sign-in** (`src/auth.ts`, Auth.js v5 + Drizzle adapter, database sessions): Google OAuth and Resend magic links. A first sign-in *claims* the current anonymous row (same `users.id`, email attached). Signing into an existing account from another browser moves that browser's anonymous analyses onto the account and removes the empty anonymous row. Signing out gives the browser a fresh anonymous id.
+- **Rate limits** on `POST /api/analyze`: 6/min per visitor and 20/min per salted IP hash (in memory), plus 30/hour per visitor counted in Postgres so it holds across serverless instances. Raw IPs are never stored or logged.
+- **Public stats.** `GET /api/stats` → `{ users, analyses, returningUsers }` from live `COUNT` queries, cached 60 s (data cache + `s-maxage=60`). The landing page shows it next to the main CTA and hides it when the DB is unavailable — numbers are never seeded or faked.
 
 ## Scripts
 
