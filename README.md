@@ -64,7 +64,7 @@ For the NVDA example above, an illustrative result could look like this:
 
 - It does not tell you to buy or sell anything.
 - It does not predict prices. A verdict describes the assumptions in your idea, not the future.
-- It does not place trades or connect to your wallet in this version.
+- It does not place trades or connect to your wallet.
 
 ---
 
