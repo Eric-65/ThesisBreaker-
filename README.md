@@ -171,12 +171,6 @@ Browser ──POST /api/analyze──▶ rate limit ─▶ identify visitor/user
 - **Sign-in merge.** A first sign-in attaches the email to the existing anonymous row, so the user id stays the same. Signing in from another browser moves that browser's anonymous analyses onto the account. Signing out gives the browser a new anonymous ID.
 - **Rate limits on `/api/analyze`.** Each visitor gets 6 per minute and each salted IP hash gets 20 per minute; both limits are kept in memory. A cap of 30 per hour per visitor is counted in Postgres, so it holds across serverless instances.
 
-### Roadmap (Phase 2)
-
-- Fundamentals, estimates and news evidence via the Bitget Agent Hub MCP
-- Optional paper orders through a Bitget Agentic Account, always confirmed by a human
-- Wallet connect
-
 ### Credits and disclaimer
 
 See [`CREDITS.md`](CREDITS.md) for image, icon and font sources.
