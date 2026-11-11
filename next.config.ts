@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],
+    // Google profile photos (avatars of signed-in users).
+    remotePatterns: [{ protocol: "https", hostname: "**.googleusercontent.com" }],
   },
   async headers() {
     return [

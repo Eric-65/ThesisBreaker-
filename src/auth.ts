@@ -9,7 +9,9 @@ import Resend from "next-auth/providers/resend";
 import { cookies } from "next/headers";
 import { getDb, isDbConfigured } from "@/db";
 import { accounts, qwenCalls, sessions, theses, users, verificationTokens, type User } from "@/db/schema";
+import { creditReferral, ensureReferralCode, withUniqueReferralCode } from "@/lib/referrals";
 import {
+  REF_COOKIE,
   SEEN_COOKIE,
   VISITOR_COOKIE,
   VISITOR_MAX_AGE_S,
@@ -17,10 +19,14 @@ import {
   isValidVisitorId,
 } from "@/lib/visitor/shared";
 
+// AUTH_GOOGLE_* are the Auth.js names; GOOGLE_CLIENT_* are still accepted.
+const googleId = () => process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_ID;
+const googleSecret = () => process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+
 /** Which sign-in methods are configured. All values are server-only env vars. */
 export function authProviders() {
   return {
-    google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    google: Boolean(googleId() && googleSecret()),
     email: Boolean(process.env.AUTH_RESEND_KEY && process.env.AUTH_EMAIL_FROM),
   };
 }
@@ -47,6 +53,18 @@ async function setVisitorCookie(visitorId: string): Promise<void> {
     jar.delete(SEEN_COOKIE);
   } catch (err) {
     console.error("[auth] could not set visitor cookie:", (err as Error).message);
+  }
+}
+
+/** Reads the invite cookie once and clears it, so a code is only ever considered for one sign-in. */
+async function takeRefCookie(): Promise<string | null> {
+  try {
+    const jar = await cookies();
+    const v = jar.get(REF_COOKIE)?.value ?? null;
+    if (v) jar.delete(REF_COOKIE);
+    return v;
+  } catch {
+    return null;
   }
 }
 
@@ -83,27 +101,31 @@ function buildAdapter(): Adapter {
         emailVerified: data.emailVerified ?? null,
       };
       const vid = await visitorCookie();
-      if (vid) {
-        const [claimed] = await db
-          .update(users)
-          .set(profile)
-          .where(and(eq(users.visitorId, vid), isNull(users.email)))
+      const row = await withUniqueReferralCode(async (referralCode) => {
+        const account = { ...profile, referralCode, joinedAt: new Date() };
+        if (vid) {
+          const [claimed] = await db
+            .update(users)
+            .set(account)
+            .where(and(eq(users.visitorId, vid), isNull(users.email)))
+            .returning();
+          if (claimed) return claimed;
+        }
+        // No anonymous row to claim (cookie blocked, or this browser's row already
+        // belongs to another account): start a fresh row.
+        const [created] = await db
+          .insert(users)
+          .values({ ...account, visitorId: vid ?? randomUUID() })
+          .onConflictDoNothing({ target: users.visitorId })
           .returning();
-        if (claimed) return toAdapterUser(claimed);
-      }
-      // No anonymous row to claim (cookie blocked, or this browser's row already
-      // belongs to another account): start a fresh row.
-      const [created] = await db
-        .insert(users)
-        .values({ ...profile, visitorId: vid ?? randomUUID() })
-        .onConflictDoNothing({ target: users.visitorId })
-        .returning();
-      if (created) return toAdapterUser(created);
-      const [fresh] = await db
-        .insert(users)
-        .values({ ...profile, visitorId: randomUUID() })
-        .returning();
-      return toAdapterUser(fresh);
+        if (created) return created;
+        const [fresh] = await db
+          .insert(users)
+          .values({ ...account, visitorId: randomUUID() })
+          .returning();
+        return fresh;
+      });
+      return toAdapterUser(row);
     },
   };
 }
@@ -151,24 +173,57 @@ const lazyConfig = (): NextAuthConfig => {
     secret: process.env.AUTH_SECRET,
     providers: [
       ...(p.google
-        ? [Google({ clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET })]
+        ? [
+            Google({
+              clientId: googleId(),
+              clientSecret: googleSecret(),
+              // Only the basics: who you are, your email, and your public profile (name + photo).
+              authorization: { params: { scope: "openid email profile" } },
+              // Google verifies email ownership, so an existing magic-link account with the
+              // same address is the same person: link it instead of creating a duplicate.
+              allowDangerousEmailAccountLinking: true,
+            }),
+          ]
         : []),
       ...(p.email ? [Resend({ apiKey: process.env.AUTH_RESEND_KEY, from: process.env.AUTH_EMAIL_FROM })] : []),
     ],
-    pages: { signIn: "/signin", verifyRequest: "/signin?check=1", error: "/signin" },
+    pages: {
+      signIn: "/signin",
+      verifyRequest: "/signin?check=1",
+      error: "/signin",
+      // First sign-in only: the welcome card with the invite link.
+      newUser: "/invites?welcome=1",
+    },
     callbacks: {
+      // Expose only what the UI needs — not the whole users row.
       session({ session, user }) {
-        if (session.user && user?.id) session.user.id = user.id;
-        return session;
+        return {
+          expires: session.expires,
+          user: { id: user.id, name: user.name ?? null, email: user.email, image: user.image ?? null },
+        } as typeof session;
       },
     },
     events: {
-      async signIn({ user }) {
+      // Fires once, when an account is created — the only moment a referral is credited.
+      async createUser({ user }) {
+        if (!user.id) return;
+        try {
+          await creditReferral(user.id, await takeRefCookie());
+        } catch (err) {
+          console.error("[auth] referral credit failed:", (err as Error).message);
+        }
+      },
+      async signIn({ user, isNewUser }) {
         if (!user.id) return;
         try {
           await mergeAnonymousInto(user.id);
+          if (!isNewUser) {
+            // Existing accounts can't be re-referred: drop any pending invite code.
+            await takeRefCookie();
+            await ensureReferralCode(user.id);
+          }
         } catch (err) {
-          console.error("[auth] anonymous merge failed:", (err as Error).message);
+          console.error("[auth] sign-in follow-up failed:", (err as Error).message);
         }
       },
       async signOut() {

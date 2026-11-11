@@ -58,7 +58,10 @@ For the NVDA example above, an illustrative result could look like this:
 - **No account needed.** You can use ThesisBreaker without signing up. A single anonymous cookie (a random ID) keeps your stress tests together in your history.
 - **Optional sign-in.** You can sign in with Google or an email magic link to keep your history across devices. Stress tests you already ran in that browser carry over to your account.
 - **What is stored:** your trade ideas, their analyses, and your email if you sign in. No raw IP addresses are stored, and the site has no ad or third-party trackers.
-- **Public counts are real.** The landing page shows live counts ("X traders · Y theses stress-tested"). They come from real database counts and are never seeded or faked.
+- **Invite links.** Every account gets a personal invite link and a "My invites" page showing who joined through it and who became active. Emails are never shown to other users.
+- **Community page.** `/community` shows live traction: users, stress tests, a 30-day growth chart, the verdict mix, recent members and top inviters. Your name appears there only if you opt in; otherwise you are listed as "Anonymous trader".
+- **Public counts are real.** Every number on the landing and community pages comes from real database counts and is never seeded or faked.
+- **Privacy and terms.** See `/privacy` and `/terms` on the site.
 
 ### What it does *not* do
 
@@ -104,10 +107,13 @@ All variables are read on the server only. None use the `NEXT_PUBLIC_` prefix, s
 | `QWEN_ENABLE_THINKING` | No | `true` / `false` (default). Thinking tokens are billed as output. |
 | `QWEN_TIMEOUT_MS` | No | Per-request timeout in ms. Defaults to `45000`. |
 | `AUTH_SECRET` | For sign-in | Auth.js secret. Generate with `npx auth secret`. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth. Redirect URI: `https://<your-domain>/api/auth/callback/google`. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | For Google sign-in | Google OAuth client ID and secret. Redirect URI: `https://<your-domain>/api/auth/callback/google`. Only the `openid`, `email` and `profile` scopes are requested. |
 | `AUTH_RESEND_KEY` / `AUTH_EMAIL_FROM` | Optional | [Resend](https://resend.com) API key and a verified sender, for email magic links. |
 | `AUTH_URL` | No | Canonical site URL. Only needed outside Vercel or behind a proxy. |
 | `IP_HASH_SALT` | No | Salt for hashed-IP rate-limit keys. Falls back to `AUTH_SECRET`. |
+| `ADMIN_TOKEN` | For `/admin` | Unlocks the admin user table. At least 16 characters; without it `/admin` returns 404. |
+| `CONTACT_EMAIL` | Recommended | Address shown on `/privacy` and `/terms` for deletion requests. |
+| `SITE_URL` | No | Origin used in invite links. Defaults to the live site in production. |
 
 Sign-in turns on only when `AUTH_SECRET`, `DATABASE_URL` and at least one provider (Google or Resend) are all set.
 
@@ -151,16 +157,19 @@ Browser ──POST /api/analyze──▶ rate limit ─▶ identify visitor/user
 
 | Path | Responsibility |
 |---|---|
-| `src/app/` | Pages (`/`, `/analyze`, `/history`, `/signin`, `/about`) and API routes |
+| `src/app/` | Pages (`/`, `/analyze`, `/history`, `/community`, `/invites`, `/profile`, `/signin`, `/admin`, `/privacy`, `/terms`, `/about`) and API routes |
 | `src/app/api/analyze` | The streaming stress-test endpoint |
-| `src/app/api/stats` | Public aggregate counts `{ users, analyses, returningUsers }`, cached 60s |
+| `src/app/api/stats` | Public community stats (totals, 30-day growth, verdict mix, recent members, top inviters), cached 60s |
+| `src/lib/stats.ts` | The cached COUNT queries behind `/api/stats`, `/community` and the homepage strip |
+| `src/lib/referrals.ts` | Invite codes, referral crediting rules and the "My invites" data |
+| `src/lib/admin.ts` | `ADMIN_TOKEN` check and the admin session cookie |
 | `src/lib/analysis/run.ts` | Orchestration of the full stress test |
 | `src/lib/analysis/scoring.ts` | Fragility scoring and the verdict guardrail |
 | `src/lib/analysis/heuristic.ts` | Deterministic offline fallback |
 | `src/lib/qwen.ts` | `fetch`-based Qwen client: JSON mode, streaming, timeout, one retry on 5xx |
 | `src/lib/market/` | `MarketDataProvider` interface and Bitget spot v2 implementation |
 | `src/proxy.ts` | Anonymous visitor cookie and visit tracking (bots skipped) |
-| `src/auth.ts` | Auth.js config: Google and magic link, plus anonymous-to-account merge |
+| `src/auth.ts` | Auth.js config: Google and magic link, anonymous-to-account merge, referral credit on account creation |
 | `src/db/schema.ts` | Drizzle schema: `users`, `theses`, `assumptions`, `qwen_calls`, auth tables |
 | `drizzle/` | SQL migrations |
 
@@ -170,6 +179,26 @@ Browser ──POST /api/analyze──▶ rate limit ─▶ identify visitor/user
 - **Ownership.** Each saved analysis belongs to a `users` row. `/history` shows only the current visitor's or account's analyses. Individual verdict pages (`/history/<id>`) can be shared by link.
 - **Sign-in merge.** A first sign-in attaches the email to the existing anonymous row, so the user id stays the same. Signing in from another browser moves that browser's anonymous analyses onto the account. Signing out gives the browser a new anonymous ID.
 - **Rate limits on `/api/analyze`.** Each visitor gets 6 per minute and each salted IP hash gets 20 per minute; both limits are kept in memory. A cap of 30 per hour per visitor is counted in Postgres, so it holds across serverless instances.
+
+### Invites, community and admin (technical details)
+
+- **Invite codes.** Each account gets a unique 7-character `referral_code` when it is created, from an alphabet without look-alike characters (no `0/O/1/I/L`). The link is `https://<site>/?ref=CODE`.
+- **Capture.** Landing with `?ref=CODE` stores the code in an httpOnly `tb_ref` cookie for 30 days, so it survives the Google redirect.
+- **Credit.** The referrer is credited only in the Auth.js `createUser` event, when the invited person creates an account. `referred_by_user_id` is written once and never changed. Unknown codes and self-referrals are ignored, and an existing account cannot be re-referred.
+- **Active referral.** An invited account that has completed at least one stress test.
+- **Community wall.** `display_name` and `show_on_wall` (off by default) control what is public. Without opt-in a member appears as "Anonymous trader" with no photo.
+- **Internal users.** Rows flagged `is_internal` in `/admin`, along with their stress tests and referrals, are excluded from every public number and the leaderboard.
+- **Admin.** `/admin` asks for `ADMIN_TOKEN` and then sets an httpOnly session cookie scoped to `/admin`. Every admin action re-checks it on the server.
+- **Naming.** In the `users` table, `visitor_id` is the anonymous ID and `image` is the avatar URL (Auth.js requires that name). Analyses are stored in `theses`.
+
+### Testing the referral flow
+
+1. Sign in as user A and open **My invites** from the avatar menu. Copy the invite link.
+2. Open the link in a private window (or another browser). The `tb_ref` cookie is set.
+3. In that window, sign up as user B with a different Google account or email.
+4. Refresh A's **My invites**: B appears under "People joined" with "No stress test yet".
+5. As B, run one stress test. Refresh A's page: B is now "Active" and the stress-test count is 1.
+6. To appear on `/community`, set a display name and tick "Show me on the community wall" in **Profile**. Public stats refresh within about a minute.
 
 ### Credits and disclaimer
 

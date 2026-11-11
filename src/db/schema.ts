@@ -1,4 +1,6 @@
 import {
+  type AnyPgColumn,
+  boolean,
   index,
   integer,
   jsonb,
@@ -7,12 +9,16 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 /**
  * One row per person: created anonymously from the `tb_vid` cookie and, if they
  * sign in, the same row gains an email (Auth.js uses this table directly).
- * `name`, `email`, `emailVerified` and `image` are the columns Auth.js needs.
+ *
+ * Naming: `visitor_id` is the anonymous id ("anon_id") and `image` is the
+ * avatar URL — Auth.js requires the `name`, `email`, `emailVerified` and
+ * `image` property names.
  */
 export const users = pgTable(
   "users",
@@ -23,11 +29,29 @@ export const users = pgTable(
     name: text("name"),
     emailVerified: timestamp("email_verified", { withTimezone: true, mode: "date" }),
     image: text("image"),
+
+    /** Public name chosen by the user; only shown when `showOnWall` is true. */
+    displayName: varchar("display_name", { length: 30 }),
+    showOnWall: boolean("show_on_wall").notNull().default(false),
+    /** 7-char invite code, assigned when the row becomes an account. */
+    referralCode: text("referral_code").unique(),
+    /** Set once, when the account is created from an invite link. Never changed. */
+    referredByUserId: uuid("referred_by_user_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    /** Team/test accounts: excluded from every public number and the leaderboard. */
+    isInternal: boolean("is_internal").notNull().default(false),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the row became an account (first sign-in). Null while anonymous. */
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
     visitCount: integer("visit_count").notNull().default(1),
   },
-  (t) => [index("users_last_seen_at_idx").on(t.lastSeenAt)],
+  (t) => [
+    index("users_last_seen_at_idx").on(t.lastSeenAt),
+    index("users_created_at_idx").on(t.createdAt),
+    index("users_joined_at_idx").on(t.joinedAt),
+    index("users_referred_by_user_id_idx").on(t.referredByUserId),
+  ],
 );
 
 // --- Auth.js tables (shape required by @auth/drizzle-adapter) ---

@@ -6,6 +6,21 @@ import { getDb } from "@/db/client";
 export const VISITOR_COOKIE = "tb_vid";
 /** Sliding 30-minute marker: when it is missing, a new visit (session) starts. */
 export const SEEN_COOKIE = "tb_seen";
+/** Invite code captured from `?ref=CODE`; survives the OAuth round-trip. */
+export const REF_COOKIE = "tb_ref";
+export const REF_MAX_AGE_S = 60 * 60 * 24 * 30;
+/** No look-alike characters: 0/O, 1/I/L are excluded. */
+export const REF_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const REF_CODE_LENGTH = 7;
+const REF_RE = new RegExp(`^[${REF_ALPHABET}]{${REF_CODE_LENGTH}}$`);
+
+/** Upper-cases and validates the shape of an invite code. Null when it can't be one. */
+export function normalizeRefCode(v: string | undefined | null): string | null {
+  if (typeof v !== "string") return null;
+  const code = v.trim().toUpperCase();
+  return REF_RE.test(code) ? code : null;
+}
+
 export const VISITOR_MAX_AGE_S = 60 * 60 * 24 * 365;
 export const SESSION_WINDOW_S = 30 * 60;
 

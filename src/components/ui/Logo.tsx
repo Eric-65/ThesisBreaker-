@@ -20,7 +20,7 @@ export function Logo() {
   return (
     <Link href="/" className="inline-flex items-center gap-2.5 rounded-md" aria-label="ThesisBreaker home">
       <LogoMark />
-      <span className="text-[15px] font-semibold tracking-tight">
+      <span className="text-[15px] font-semibold tracking-tight max-[479px]:sr-only">
         <span className="metal-text">Thesis</span>
         <span className="text-cyan">Breaker</span>
       </span>

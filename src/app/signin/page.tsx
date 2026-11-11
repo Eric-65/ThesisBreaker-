@@ -15,12 +15,24 @@ const ERRORS: Record<string, string> = {
   AccessDenied: "Sign-in was cancelled.",
 };
 
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden fill="currentColor">
+      <path d="M21.6 12.2c0-.7-.1-1.3-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" />
+      <path d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z" />
+      <path d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9z" />
+      <path d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.8A10 10 0 0 0 3.1 7.5L6.4 10C7.2 7.7 9.4 5.9 12 5.9z" />
+    </svg>
+  );
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ check?: string; error?: string; next?: string }>;
+  searchParams: Promise<{ check?: string; error?: string; next?: string; mode?: string }>;
 }) {
-  const { check, error, next } = await searchParams;
+  const { check, error, next, mode } = await searchParams;
+  const signup = mode === "signup";
   if (await getSession()) redirect("/history");
   const enabled = isAuthEnabled();
   const providers = authProviders();
@@ -28,13 +40,13 @@ export default async function SignInPage({
 
   return (
     <div className="mx-auto max-w-md px-4 py-14 sm:px-6 sm:py-20">
-      <p className="eyebrow">Optional</p>
+      <p className="eyebrow">{signup ? "Create your account" : "Welcome back"}</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-        <span className="metal-text">Save your history</span>
+        <span className="metal-text">{signup ? "Sign up" : "Sign in"}</span>
       </h1>
       <p className="mt-3 text-muted">
-        You can use ThesisBreaker without an account. Signing in keeps the stress tests you already ran in this browser and
-        makes them available on any device.
+        {signup ? "An account keeps" : "Signing in keeps"} the stress tests you already ran in this browser, makes them
+        available on any device, and gives you a personal invite link. You can also keep using ThesisBreaker without one.
       </p>
 
       <div className="glass mt-8 space-y-5 p-5 sm:p-6">
@@ -56,7 +68,7 @@ export default async function SignInPage({
               <form action={signInWithGoogle}>
                 <input type="hidden" name="next" value={nextPath} />
                 <button type="submit" className="btn btn-primary w-full justify-center">
-                  Continue with Google
+                  <GoogleMark /> Continue with Google
                 </button>
               </form>
             )}
@@ -66,8 +78,8 @@ export default async function SignInPage({
             {providers.email && (
               <form action={signInWithEmail} className="space-y-3">
                 <input type="hidden" name="next" value={nextPath} />
-                <label htmlFor="email" className="text-sm font-semibold">
-                  Email me a sign-in link
+                <label htmlFor="email" className="text-sm font-medium text-muted">
+                  Get a sign-in link by email instead
                 </label>
                 <input
                   id="email"
@@ -87,9 +99,12 @@ export default async function SignInPage({
         )}
       </div>
       <p className="mt-6 text-xs text-muted">
-        We store your email (and name, if Google provides it) only to sign you in and attach your saved analyses.{" "}
+        By continuing you agree to the{" "}
+        <Link href="/terms" className="underline hover:text-ink">Terms</Link> and{" "}
+        <Link href="/privacy" className="underline hover:text-ink">Privacy Policy</Link>. With Google we receive only your
+        name, email and profile photo.{" "}
         <Link href="/analyze" className="underline hover:text-ink">
-          Continue without signing in
+          Continue without an account
         </Link>
       </p>
     </div>
