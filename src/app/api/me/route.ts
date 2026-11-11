@@ -10,16 +10,18 @@ export async function GET() {
   let signedIn = false;
   let email: string | null = null;
   let name: string | null = null;
+  let image: string | null = null;
   try {
     const me = await currentIdentity();
     signedIn = me.signedIn;
     email = me.email;
     name = me.name;
+    image = me.image;
   } catch (err) {
     console.error("[me]", (err as Error).message);
   }
   return Response.json(
-    { authEnabled, providers: authEnabled ? authProviders() : { google: false, email: false }, signedIn, email, name },
+    { authEnabled, providers: authEnabled ? authProviders() : { google: false, email: false }, signedIn, email, name, image },
     { headers: { "cache-control": "private, no-store" } },
   );
 }

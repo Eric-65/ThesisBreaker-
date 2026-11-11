@@ -8,6 +8,7 @@ export interface Me {
   signedIn: boolean;
   email: string | null;
   name: string | null;
+  image: string | null;
 }
 
 let inflight: Promise<Me | null> | null = null;

@@ -13,6 +13,7 @@ export interface Identity {
   signedIn: boolean;
   email: string | null;
   name: string | null;
+  image: string | null;
   /**
    * True when this browser's anonymous id belongs to an account but there is no
    * session (signed out / expired). Writes still go to that row; reads of its
@@ -22,7 +23,7 @@ export interface Identity {
   visitorId: string | null;
 }
 
-const NONE: Identity = { userId: null, signedIn: false, email: null, name: null, needsSignIn: false, visitorId: null };
+const NONE: Identity = { userId: null, signedIn: false, email: null, name: null, image: null, needsSignIn: false, visitorId: null };
 
 export async function readVisitorId(): Promise<string | null> {
   const v = (await cookies()).get(VISITOR_COOKIE)?.value;
@@ -39,6 +40,7 @@ export async function currentIdentity(): Promise<Identity> {
       signedIn: true,
       email: session.user.email ?? null,
       name: session.user.name ?? null,
+      image: session.user.image ?? null,
       needsSignIn: false,
       visitorId,
     };
@@ -57,6 +59,7 @@ export async function currentIdentity(): Promise<Identity> {
     signedIn: false,
     email: null,
     name: null,
+    image: null,
     needsSignIn: Boolean(row?.email),
     visitorId,
   };
@@ -66,9 +69,8 @@ export async function currentIdentity(): Promise<Identity> {
  * Salted SHA-256 of the client IP, used only as an in-memory rate-limit key.
  * Raw IPs are never stored or logged.
  */
-export function hashedClientIp(req: Request): string {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+export function hashedClientIp(h: Headers): string {
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "local";
   const salt = process.env.IP_HASH_SALT || process.env.AUTH_SECRET || "thesisbreaker-dev-salt";
   return createHash("sha256").update(`${salt}|${ip}`).digest("hex").slice(0, 32);
 }

@@ -1,6 +1,8 @@
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { isDbConfigured } from "@/db/client";
 import {
+  REF_COOKIE,
+  REF_MAX_AGE_S,
   SEEN_COOKIE,
   SESSION_WINDOW_S,
   VISITOR_COOKIE,
@@ -8,6 +10,7 @@ import {
   cookieOptions,
   isBot,
   isValidVisitorId,
+  normalizeRefCode,
   recordVisit,
 } from "@/lib/visitor/shared";
 
@@ -16,6 +19,9 @@ import {
  * - First visit: issue `tb_vid` (random UUID). It is also written onto the
  *   forwarded request so the page / API handling this same request sees it.
  * - Session start (no `tb_seen`): upsert the user row in the background.
+ * - `?ref=CODE`: remember the invite code for 30 days (httpOnly) so it is still
+ *   there when the visitor comes back from Google. Only the shape is checked
+ *   here; the code is validated against the database when an account is created.
  * - Bots and crawlers are skipped entirely. No IP address is read or stored here.
  */
 export function proxy(req: NextRequest, event: NextFetchEvent) {
@@ -30,6 +36,9 @@ export function proxy(req: NextRequest, event: NextFetchEvent) {
   const res = NextResponse.next({ request: { headers: req.headers } });
 
   if (isNew) res.cookies.set(VISITOR_COOKIE, visitorId, cookieOptions(VISITOR_MAX_AGE_S));
+  const ref = normalizeRefCode(req.nextUrl.searchParams.get("ref"));
+  if (ref) res.cookies.set(REF_COOKIE, ref, cookieOptions(REF_MAX_AGE_S));
+
   // Sliding window: a visit ends after 30 minutes without a request.
   res.cookies.set(SEEN_COOKIE, "1", cookieOptions(SESSION_WINDOW_S));
 

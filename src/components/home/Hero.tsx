@@ -63,20 +63,26 @@ export function Hero({ stats }: { stats: PublicStats | null }) {
             </Link>
           </motion.div>
           {showStats && stats && (
-            <motion.p
-              className="mt-4 flex items-center gap-2 text-sm text-muted"
-              variants={rise}
-              initial="hidden"
-              animate="show"
-              custom={3.5}
-            >
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-cyan shadow-[0_0_8px_var(--color-cyan)]" />
-              <span>
-                <span className="num text-ink">{fmt.format(stats.users)}</span> {stats.users === 1 ? "trader" : "traders"} ·{" "}
-                <span className="num text-ink">{fmt.format(stats.analyses)}</span>{" "}
-                {stats.analyses === 1 ? "thesis" : "theses"} stress-tested
-              </span>
-            </motion.p>
+            <motion.div className="mt-4" variants={rise} initial="hidden" animate="show" custom={3.5}>
+              <Link
+                href="/community"
+                className="group inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md text-sm text-muted transition-colors hover:text-ink"
+              >
+                <span>
+                  <span
+                    aria-hidden
+                    className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-cyan align-middle shadow-[0_0_8px_var(--color-cyan)]"
+                  />
+                  <span className="num text-ink">{fmt.format(stats.users)}</span> {stats.users === 1 ? "trader" : "traders"} ·{" "}
+                  <span className="num text-ink">{fmt.format(stats.analyses)}</span>{" "}
+                  {stats.analyses === 1 ? "thesis" : "theses"} stress-tested ·{" "}
+                  <span className="num text-ink">{fmt.format(stats.activeUsers7d)}</span> active this week
+                </span>
+                <span className="inline-flex items-center gap-1 text-cyan">
+                  Community <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </span>
+              </Link>
+            </motion.div>
           )}
           <motion.dl
             className="mt-10 grid max-w-md grid-cols-3 gap-4 border-t border-line pt-6 text-xs text-muted"

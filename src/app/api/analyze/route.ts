@@ -22,7 +22,7 @@ function tooMany(retryAfterS: number, message = "Too many analyses — try again
 /** POST { idea } → text/event-stream of StreamEvent JSON frames. */
 export async function POST(req: Request) {
   // Backstop against clients that drop cookies: keyed on a salted IP hash, never the raw IP.
-  const byIp = rateLimit(`analyze:ip:${hashedClientIp(req)}`, PER_IP_PER_MINUTE, 60_000);
+  const byIp = rateLimit(`analyze:ip:${hashedClientIp(req.headers)}`, PER_IP_PER_MINUTE, 60_000);
   if (!byIp.ok) return tooMany(byIp.retryAfterS);
 
   let userId: string | null = null;
