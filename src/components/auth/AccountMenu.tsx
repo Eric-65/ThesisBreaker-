@@ -16,6 +16,7 @@ const ITEMS = [
 export function AccountMenu() {
   const me = useMe();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,13 +81,25 @@ export function AccountMenu() {
               <Icon className="h-4 w-4 text-muted" aria-hidden /> {text}
             </Link>
           ))}
-          <form action={signOutAction} className="mt-1 border-t border-line pt-1">
+          <form
+            action={async () => {
+              setSigningOut(true);
+              try {
+                await signOutAction();
+              } finally {
+                // Full page load: every component, including this header, starts fresh as signed out.
+                window.location.assign("/");
+              }
+            }}
+            className="mt-1 border-t border-line pt-1"
+          >
             <button
               type="submit"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-ink/90 hover:bg-white/5 hover:text-ink"
+              disabled={signingOut}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-ink/90 hover:bg-white/5 hover:text-ink disabled:opacity-60"
             >
-              <LogOut className="h-4 w-4 text-muted" aria-hidden /> Sign out
+              <LogOut className="h-4 w-4 text-muted" aria-hidden /> {signingOut ? "Signing out…" : "Sign out"}
             </button>
           </form>
         </div>
