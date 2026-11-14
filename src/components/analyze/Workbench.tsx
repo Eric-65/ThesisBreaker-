@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SaveHistoryPrompt } from "@/components/auth/SaveHistoryPrompt";
@@ -16,13 +16,31 @@ const EXAMPLES = [
   "Short TSLA rToken into the delivery numbers — everyone is too bullish and the breakout above resistance will fail this week.",
   "Buy BTC now: the Fed will cut rates at the next FOMC and ETF inflows will push it to a new all-time high within 30 days.",
   "Long COIN rToken tonight because crypto volumes are surging and the stock lags BTC.",
+  "Long ETH this month because spot ETF inflows are picking up and staking keeps more supply locked.",
+  "Short MSTR rToken this week — it trades at too big a premium to its bitcoin holdings and BTC momentum is fading.",
+  "Long AAPL rToken into earnings because iPhone demand will surprise and services revenue keeps growing.",
+  "Buy SOL for 2 weeks because network activity is at a record and a spot ETF approval is close.",
+  "Short SPY rToken before CPI — inflation will come in hot and the market is priced for rate cuts.",
+  "Long PLTR rToken this quarter because new government contracts will drive another earnings beat.",
+  "Long META rToken after earnings because ad revenue is accelerating and AI spending is paying off.",
+  "Short DOGE this week — the meme rally has run out of new buyers and funding rates are too high.",
 ];
+
+/** Examples shown before "More examples" is tapped (keeps the form short on phones). */
+const VISIBLE_EXAMPLES = 6;
+
+/** Short chip label: the part before the reasoning ("Long NVDA rToken over the weekend"). */
+const chipLabel = (idea: string) => idea.split(/[—:]| because/)[0].trim();
 
 const MAX = 1200;
 
 export function Workbench() {
   const params = useSearchParams();
   const [idea, setIdea] = useState(() => params.get("idea")?.slice(0, MAX) ?? "");
+  const [showAllExamples, setShowAllExamples] = useState(false);
+  // Always show the picked example, even if it is in the collapsed part.
+  const examples =
+    showAllExamples || EXAMPLES.indexOf(idea) >= VISIBLE_EXAMPLES ? EXAMPLES : EXAMPLES.slice(0, VISIBLE_EXAMPLES);
   const t = useStressTest();
   const resultRef = useRef<HTMLDivElement>(null);
   const running = t.phase === "running";
@@ -66,18 +84,30 @@ export function Workbench() {
           className="mt-3 w-full resize-y rounded-xl border border-line bg-bg/70 p-4 text-[15px] leading-relaxed text-ink placeholder:text-muted/60 focus:border-cyan/50 focus:outline-none focus:ring-2 focus:ring-cyan/20"
         />
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Example ideas">
-          {EXAMPLES.map((ex) => (
+          {examples.map((ex) => (
             <button
               key={ex}
               type="button"
               className="chip max-w-full text-left"
               aria-pressed={idea === ex}
+              title={ex}
               onClick={() => setIdea(ex)}
             >
               <Sparkles className="h-3 w-3 shrink-0 text-cyan" aria-hidden />
-              <span className="truncate">{ex.split(/[—:]| because/)[0]}</span>
+              <span className="truncate">{chipLabel(ex)}</span>
             </button>
           ))}
+          {examples.length < EXAMPLES.length && (
+            <button
+              type="button"
+              className="chip text-muted"
+              aria-expanded={false}
+              onClick={() => setShowAllExamples(true)}
+            >
+              <Plus className="h-3 w-3 shrink-0" aria-hidden />
+              {EXAMPLES.length - examples.length} more examples
+            </button>
+          )}
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <span className="num text-xs text-muted">
