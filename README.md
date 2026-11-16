@@ -2,6 +2,10 @@
 
 **Break your thesis before the market does.**
 
+**Live app: [thesis-breaker-sigma.vercel.app](https://thesis-breaker-sigma.vercel.app)**
+
+![ThesisBreaker home page: "Break your thesis before the market does", with a "Try it free" button and live user and stress-test counts](docs/images/home.webp)
+
 ThesisBreaker is a pre-trade red team for tokenized U.S. stocks (Bitget rTokens, which trade 24/7) and crypto. You describe a trade idea in plain English. ThesisBreaker finds the hidden assumptions your idea depends on, tests each one against live market evidence, and returns a verdict: **PASS**, **REVISE** or **BLOCK**. The verdict names the assumption most likely to break.
 
 AI analyzes; you decide. ThesisBreaker never places orders. It is a research tool, not financial advice.
@@ -28,27 +32,47 @@ Tokenized U.S. stocks make the problem sharper. They trade around the clock, eve
 ### What ThesisBreaker does
 
 1. **You write the idea the way you'd say it.** For example: *"Long NVDA rToken over the weekend because earnings will beat and the Friday dip will reverse by Monday."*
-2. **It pulls live evidence from Bitget.** That includes the last price, 24h change and range, volume, spread, and the last 72 hourly candles for the asset you named.
+2. **It pulls live evidence from Bitget.** For the asset you named: the last price, 24h change and range, volume, spread, the last 72 hourly candles and about a year of daily range. For context: how the broader market moved over the same 72 hours (BTC and ETH for crypto, the S&P 500 and Nasdaq-100 rTokens for stocks), and how futures traders are positioned (funding rate, open interest, long/short ratios).
 3. **It surfaces 4–8 testable assumptions.** Each one gets evidence for, evidence against, a status (*holds / weak / broken*) and a fragility score from 0 to 100.
 4. **It returns a verdict.** PASS, REVISE or BLOCK, along with the weakest assumption and what would have to be true for the trade to work.
 5. **It keeps your history.** Every stress test is saved so you can look back at what you believed and what happened.
 
-### What a verdict looks like
+### A tour of the app
 
-For the NVDA example above, an illustrative result could look like this:
+*Screenshots from the live site, taken on 16 November 2026. The example idea is "Buy SOL for 2 weeks because network activity is at a record and a spot ETF approval is close."*
 
-| # | Assumption | Status | Fragility |
-|---|---|---|---|
-| A1 | The NVDA rToken will track the stock over the weekend, with liquidity to exit near fair value. | broken | 78 |
-| A2 | The expected reversal happens by Monday, not merely eventually. | weak | 66 |
-| A3 | Earnings will beat and the beat is not already priced in. | weak | 61 |
-| A4 | The Friday dip is a pullback, not the start of a downtrend. | holds | 38 |
+**1. Describe your idea.** Type it in plain English, or start from one of 12 examples.
 
-**Verdict: BLOCK.** The weakest link is A1. The idea depends on weekend liquidity that may not be there.
+![The Analyze page: a text box with the SOL trade idea and example idea chips below it](docs/images/workbench.webp)
+
+**2. Get a verdict.** The verdict names the weakest assumption, and an AI summary explains why. The fragility chart scores every assumption from 0 (solid) to 100 (likely false within the trade window).
+
+![Result page: a BLOCK verdict with 70/100 overall fragility, the weakest assumption, a fragility bar chart, "What would have to be true" and live SOL price evidence](docs/images/result.webp)
+
+**3. See the market context.** The result shows how the asset moved against the broader market, the futures funding rate, and how traders are positioned. These are the same numbers the AI used as evidence.
+
+![Market context: funding rate, open interest and share of accounts long; a chart of SOL against BTC and ETH; funding-rate history; and the long share of open positions](docs/images/market-context.webp)
+
+**4. Check every assumption.** Each card lists evidence for and against, tagged by source. Claims ThesisBreaker has no data for, like on-chain activity or ETF decisions, go under **Can't verify yet**, so you know what to check yourself.
+
+![Assumption cards: two weak assumptions with "Can't verify yet" boxes, and two broken ones with Bitget market data as evidence against](docs/images/assumptions.webp)
+
+**On a phone,** every page and chart fits the small screen:
+
+<p align="center">
+  <img src="docs/images/mobile-result.webp" width="280" alt="Phone view of a stress-test result with a BLOCK verdict">
+  &nbsp;&nbsp;
+  <img src="docs/images/mobile-context.webp" width="280" alt="Phone view of the market context charts">
+</p>
+
+**Community.** `/community` shows live traction counted from the database: users, stress tests, growth over 30 days, the verdict mix and top inviters.
+
+![Community page: total users, stress tests, active users and new users, with 30-day growth charts](docs/images/community.webp)
 
 ### Why you can trust the output
 
 - **Live data is labeled.** Evidence from Bitget is tagged *[Bitget market data]*. Background knowledge from the model is tagged *[General knowledge]* and may be out of date.
+- **Missing data is not counted against you.** If an assumption can't be checked with the available data, it's listed under *Can't verify yet* and marked *weak*, never *broken*. The AI is told never to invent numbers, dates or news.
 - **Rules can only make a verdict stricter.** Simple scoring rules can escalate the model's verdict (PASS → REVISE → BLOCK) when assumption scores cross a threshold. They can never soften it.
 - **Every model answer is validated.** Each answer is checked against a strict schema before it is shown or saved.
 - **It still works offline.** If the AI model is unavailable, a deterministic heuristic produces a clearly labeled "offline heuristic" result instead of failing.
@@ -75,7 +99,7 @@ For the NVDA example above, an illustrative result could look like this:
 
 ### Tech stack
 
-Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · Postgres + Drizzle ORM · Auth.js v5 · zod · framer-motion · recharts. AI is Qwen via Bitget's OpenAI-compatible endpoint, and market data comes from the Bitget public spot API v2.
+Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · Postgres + Drizzle ORM · Auth.js v5 · zod · framer-motion · recharts. AI is Qwen via Bitget's OpenAI-compatible endpoint. Market data comes from Bitget's public spot and USDT-futures APIs (v2), which need no key.
 
 ### Quick start
 
@@ -121,7 +145,7 @@ Sign-in turns on only when `AUTH_SECRET`, `DATABASE_URL` and at least one provid
 
 1. Import the repository in Vercel.
 2. Add the environment variables above under **Project → Settings → Environment Variables**.
-3. Run `npm run db:migrate` once against the production `DATABASE_URL`, and again whenever a new migration is added.
+3. Run `npm run db:migrate` once against the production `DATABASE_URL`, and again whenever a new migration is added. If you can't run it from a terminal, paste `scripts/sql/production-catch-up.sql` into your database's SQL editor instead.
 4. If you use Google sign-in, add the production callback URL to your Google OAuth client.
 
 ### Scripts
@@ -173,11 +197,14 @@ Browser ──POST /api/analyze──▶ rate limit ─▶ identify visitor/user
 | `src/lib/analysis/scoring.ts` | Fragility scoring and the verdict guardrail |
 | `src/lib/analysis/heuristic.ts` | Deterministic offline fallback |
 | `src/lib/qwen.ts` | `fetch`-based Qwen client: JSON mode, streaming, timeout, one retry on 5xx |
-| `src/lib/market/` | `MarketDataProvider` interface and Bitget spot v2 implementation |
+| `src/lib/market/` | `MarketDataProvider` interface, Bitget spot v2 implementation, benchmarks (`index.ts`) and futures positioning (`derivatives.ts`) |
+| `src/components/results/` | Result page: verdict, fragility chart, assumption cards, price evidence and the Market context charts |
 | `src/proxy.ts` | Anonymous visitor cookie and visit tracking (bots skipped) |
 | `src/auth.ts` | Auth.js config: Google and magic link, anonymous-to-account merge, referral credit on account creation |
 | `src/db/schema.ts` | Drizzle schema: `users`, `theses`, `assumptions`, `qwen_calls`, auth tables |
 | `drizzle/` | SQL migrations |
+| `scripts/sql/production-catch-up.sql` | Applies all migrations from a database console (e.g. Neon's SQL Editor) when you can't run `npm run db:migrate` |
+| `docs/images/` | README screenshots |
 
 ### Users, history and limits (technical details)
 
