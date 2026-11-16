@@ -30,6 +30,8 @@ export const AssumptionSchema = z.object({
   category: z.preprocess(lower, z.enum(CATEGORIES)),
   evidenceFor: z.array(text(400)).max(6).default([]),
   evidenceAgainst: z.array(text(400)).max(6).default([]),
+  /** What would be needed to check this assumption but isn't in the evidence (e.g. on-chain data, news). */
+  unverified: z.array(text(300)).max(4).default([]),
   status: z.preprocess(lower, z.enum(STATUSES)),
   fragility: z.coerce
     .number()
@@ -71,6 +73,38 @@ export interface CandleStats {
   windowHigh: number;
   windowLow: number;
   closes: number[]; // downsampled, oldest first
+  /** Candle open times (ms) matching `closes`. Absent in snapshots saved before it existed. */
+  times?: number[];
+}
+
+/** A reference market (BTC/ETH for crypto, SPY/QQQ for stocks) over the same window. */
+export interface BenchmarkSnapshot {
+  underlying: string;
+  exchangeSymbol: string;
+  change24hPct: number;
+  windowChangePct: number;
+  /** Hourly closes and their open times (ms), oldest first. */
+  closes: number[];
+  times: number[];
+}
+
+/** Positioning on the asset's Bitget USDT perpetual. */
+export interface DerivativesSnapshot {
+  symbol: string;
+  /** Current funding rate per interval, in % (positive = longs pay shorts). */
+  fundingRatePct: number;
+  fundingIntervalHours: number | null;
+  /** Settled funding rates, oldest first, in %. */
+  fundingHistory: { ts: number; ratePct: number }[];
+  /** Open interest in contracts (base asset units) and in USDT. */
+  openInterest: number;
+  openInterestUsdt: number | null;
+  /** Latest share of open position size that is long, in %. */
+  positionLongPct: number | null;
+  /** Latest share of trader accounts that are net long, in %. */
+  accountLongPct: number | null;
+  /** Hourly share of open position size that is long, oldest first. */
+  longShortHistory: { ts: number; positionLongPct: number }[];
 }
 
 /** Longer context from daily candles (e.g. distance from the 1-year high). */
@@ -91,6 +125,10 @@ export interface MarketSnapshot {
   candles: CandleStats | null;
   /** Optional: absent in snapshots saved before it existed. */
   daily?: RangeStats | null;
+  /** Optional: broader market over the same window. */
+  benchmarks?: BenchmarkSnapshot[];
+  /** Optional: futures positioning. Null when Bitget lists no perpetual for the asset. */
+  derivatives?: DerivativesSnapshot | null;
   fetchedAt: string;
   error: string | null;
 }
@@ -130,7 +168,7 @@ export type StepId = "parse" | "cache" | "market" | "extract" | "score" | "save"
 export const STEP_LABELS: Record<StepId, string> = {
   parse: "Reading the trade idea…",
   cache: "Checking recent runs…",
-  market: "Checking price evidence on Bitget…",
+  market: "Checking market data on Bitget…",
   extract: "Extracting assumptions…",
   score: "Scoring fragility…",
   save: "Saving verdict…",

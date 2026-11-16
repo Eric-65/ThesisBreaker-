@@ -1,6 +1,14 @@
 import "server-only";
-import type { AssetClass, CandleStats, MarketSnapshot, RangeStats } from "@/lib/analysis/types";
+import type {
+  AssetClass,
+  BenchmarkSnapshot,
+  CandleStats,
+  DerivativesSnapshot,
+  MarketSnapshot,
+  RangeStats,
+} from "@/lib/analysis/types";
 import { BitgetSpotProvider } from "./bitget";
+import { getDerivativesSnapshot } from "./derivatives";
 import type { Candle, MarketDataProvider } from "./provider";
 import { resolveSymbol } from "./symbols";
 
@@ -13,6 +21,7 @@ function candleStats(candles: Candle[], granularity: string): CandleStats | null
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length;
   const step = Math.max(1, Math.floor(closes.length / 48));
+  const keep = (_: unknown, i: number) => i % step === 0 || i === closes.length - 1;
   return {
     granularity,
     count: candles.length,
@@ -20,7 +29,8 @@ function candleStats(candles: Candle[], granularity: string): CandleStats | null
     hourlyVolPct: Math.sqrt(variance) * 100,
     windowHigh: Math.max(...candles.map((c) => c.high)),
     windowLow: Math.min(...candles.map((c) => c.low)),
-    closes: closes.filter((_, i) => i % step === 0 || i === closes.length - 1),
+    closes: closes.filter(keep),
+    times: candles.map((c) => c.ts).filter(keep),
   };
 }
 
@@ -35,6 +45,32 @@ function rangeStats(candles: Candle[], last: number): RangeStats | null {
     fromHighPct: (last / high - 1) * 100,
   };
 }
+
+/** Reference markets: BTC/ETH for crypto, the S&P 500 and Nasdaq-100 rTokens for stocks. */
+function benchmarksFor(underlying: string, assetClass: AssetClass | null): string[] {
+  const list = assetClass === "stock_token" ? ["SPY", "QQQ"] : ["BTC", "ETH"];
+  return list.filter((b) => b !== underlying);
+}
+
+async function getBenchmark(underlying: string, hint: AssetClass): Promise<BenchmarkSnapshot | null> {
+  const resolved = await resolveSymbol(marketData, underlying, hint);
+  if (!resolved) return null;
+  const [ticker, candles] = await Promise.all([
+    marketData.getTicker(resolved.exchangeSymbol),
+    marketData.getCandles(resolved.exchangeSymbol, { granularity: "1h", limit: 72 }),
+  ]);
+  if (candles.length < 2) return null;
+  return {
+    underlying,
+    exchangeSymbol: resolved.exchangeSymbol,
+    change24hPct: ticker.change24h * 100,
+    windowChangePct: (candles.at(-1)!.close / candles[0].close - 1) * 100,
+    closes: candles.map((c) => c.close),
+    times: candles.map((c) => c.ts),
+  };
+}
+
+const settledValue = <T,>(r: PromiseSettledResult<T>): T | undefined => (r.status === "fulfilled" ? r.value : undefined);
 
 /** Price evidence for one underlying. Never throws: failures land in `error`. */
 export async function getMarketSnapshot(
@@ -62,6 +98,16 @@ export async function getMarketSnapshot(
       // Longer context is a bonus: never fail the snapshot over it.
       marketData.getCandles(resolved.exchangeSymbol, { granularity: "1day", limit: 365 }).catch(() => []),
     ]);
+    // Broader market and futures positioning are context: a failure only leaves them out.
+    const [benchRes, derivRes] = await Promise.allSettled([
+      Promise.allSettled(benchmarksFor(underlying, resolved.assetClass).map((b) => getBenchmark(b, resolved.assetClass))),
+      getDerivativesSnapshot(underlying),
+    ]);
+    const benchmarks = (settledValue(benchRes) ?? [])
+      .map(settledValue)
+      .filter((b): b is BenchmarkSnapshot => Boolean(b));
+    const derivatives: DerivativesSnapshot | null = settledValue(derivRes) ?? null;
+
     const spread =
       ticker.bid && ticker.ask && ticker.ask > 0
         ? ((ticker.ask - ticker.bid) / ((ticker.ask + ticker.bid) / 2)) * 100
@@ -81,6 +127,8 @@ export async function getMarketSnapshot(
       },
       candles: candleStats(candles, "1h"),
       daily: rangeStats(daily, ticker.last),
+      benchmarks,
+      derivatives,
     };
   } catch (err) {
     return { ...base, error: (err as Error).message };

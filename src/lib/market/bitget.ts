@@ -58,7 +58,7 @@ const SymbolRow = z.object({
 
 // Small in-process TTL cache so the ticker strip and repeated analyses don't hammer the API.
 const cache = new Map<string, { at: number; value: unknown }>();
-async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+export async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
   const value = await load();
@@ -66,7 +66,7 @@ async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Pr
   return value;
 }
 
-async function request(path: string, params: Record<string, string | number> = {}): Promise<unknown> {
+export async function request(path: string, params: Record<string, string | number> = {}): Promise<unknown> {
   const url = new URL(path, BASE_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
 

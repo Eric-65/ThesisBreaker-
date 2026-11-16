@@ -152,6 +152,12 @@ Browser ──POST /api/analyze──▶ rate limit ─▶ identify visitor/user
 - **Streaming:** `POST /api/analyze` streams Server-Sent Events, so the UI shows each stage live.
 - **Caching:** the same idea run within 24 hours reuses the earlier Qwen result, which saves credits. Token usage for every call, including cache hits, is logged in `qwen_calls`.
 - **Symbol lookup:** symbols are resolved against Bitget's live symbol list. They are never guessed.
+- **Evidence gathered for each idea** (all from Bitget's public API, no key needed):
+  - the asset's price, 24h stats, last 72 hourly candles and about a year of daily range;
+  - the broader market over the same 72 hours: BTC and ETH for crypto, the SPY and QQQ rTokens for stocks;
+  - futures positioning on the asset's USDT perpetual: funding rate (now and the last 21 settlements), open interest, and long/short ratios by position size and by account.
+- **"Can't verify yet":** when checking an assumption needs data ThesisBreaker doesn't fetch (on-chain activity, news, ETF or SEC decisions, earnings dates), the AI lists it separately instead of counting it as evidence against. These items are stored in `assumptions.evidence_against` with a `[Can't verify] ` tag, so no migration was needed.
+- **Charts:** the result page shows the asset against the benchmarks (indexed to 100), the funding-rate history, and the long share of open positions.
 
 ### Project layout
 

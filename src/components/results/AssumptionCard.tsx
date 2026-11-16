@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Minus, Plus, Target } from "lucide-react";
+import { CircleHelp, Minus, Plus, Target } from "lucide-react";
 import type { Assumption } from "@/lib/analysis/types";
 import { CountUp } from "@/components/ui/CountUp";
 import { StatusBadge } from "./Badges";
@@ -41,6 +41,23 @@ export function AssumptionCard({ a, index, weakest }: { a: Assumption; index: nu
         <EvidenceList title="Evidence for" items={a.evidenceFor} icon="plus" />
         <EvidenceList title="Evidence against" items={a.evidenceAgainst} icon="minus" />
       </div>
+      {a.unverified?.length > 0 && (
+        <div className="mt-4 rounded-xl border border-dashed border-line-strong px-3.5 py-3">
+          <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
+            <CircleHelp className="h-3.5 w-3.5" aria-hidden /> Can&apos;t verify yet
+          </h4>
+          <ul className="mt-2 space-y-1">
+            {a.unverified.map((u, i) => (
+              <li key={i} className="text-[13px] leading-snug text-ink/75">
+                {u}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-muted">
+            This wasn&apos;t in the data ThesisBreaker could check. Verify it yourself before trading.
+          </p>
+        </div>
+      )}
     </motion.article>
   );
 }

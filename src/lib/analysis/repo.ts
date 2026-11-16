@@ -50,7 +50,7 @@ export async function saveResult(
         text: a.text,
         category: a.category,
         evidenceFor: a.evidenceFor,
-        evidenceAgainst: a.evidenceAgainst,
+        evidenceAgainst: packAgainst(a),
         status: a.status,
         fragility: a.fragility,
       })),
@@ -59,13 +59,34 @@ export async function saveResult(
   });
 }
 
+/**
+ * "Can't verify" items are stored in the existing evidence_against JSON array
+ * with this tag, so no database migration is needed. They are split back out
+ * when reading.
+ */
+const UNVERIFIED_TAG = "[Can't verify] ";
+
+function packAgainst(a: Assumption): string[] {
+  return [...a.evidenceAgainst, ...a.unverified.map((u) => UNVERIFIED_TAG + u)];
+}
+
+function unpackAgainst(stored: string[]): { evidenceAgainst: string[]; unverified: string[] } {
+  const evidenceAgainst: string[] = [];
+  const unverified: string[] = [];
+  for (const item of stored) {
+    if (item.startsWith(UNVERIFIED_TAG)) unverified.push(item.slice(UNVERIFIED_TAG.length));
+    else evidenceAgainst.push(item);
+  }
+  return { evidenceAgainst, unverified };
+}
+
 function toResult(t: Thesis, rows: (typeof assumptionsT.$inferSelect)[]): StressTestResult {
   const list: Assumption[] = rows.map((a) => ({
     id: `A${a.position + 1}`,
     text: a.text,
     category: a.category as Assumption["category"],
     evidenceFor: a.evidenceFor,
-    evidenceAgainst: a.evidenceAgainst,
+    ...unpackAgainst(a.evidenceAgainst),
     status: a.status as Assumption["status"],
     fragility: a.fragility,
   }));
