@@ -10,10 +10,10 @@ import { EXAMPLE_IDEA } from "./example";
 
 // Illustrative output only — not a live analysis and not a statement about any real security.
 const SAMPLE: Assumption[] = [
-  { id: "A1", text: "The NVDA rToken will track the stock over the weekend, with liquidity to exit near fair value.", category: "liquidity", status: "broken", fragility: 78, evidenceFor: [], evidenceAgainst: [] },
-  { id: "A2", text: "The expected reversal happens by Monday, not merely eventually.", category: "timing", status: "weak", fragility: 66, evidenceFor: [], evidenceAgainst: [] },
-  { id: "A3", text: "Earnings will beat and the beat is not already priced in.", category: "fundamental", status: "weak", fragility: 61, evidenceFor: [], evidenceAgainst: [] },
-  { id: "A4", text: "The Friday dip is a pullback, not the start of a downtrend.", category: "technical", status: "holds", fragility: 38, evidenceFor: [], evidenceAgainst: [] },
+  { id: "A1", text: "The NVDA rToken will track the stock over the weekend, with liquidity to exit near fair value.", category: "liquidity", status: "broken", fragility: 78, evidenceFor: [], evidenceAgainst: [], unverified: [] },
+  { id: "A2", text: "The expected reversal happens by Monday, not merely eventually.", category: "timing", status: "weak", fragility: 66, evidenceFor: [], evidenceAgainst: [], unverified: [] },
+  { id: "A3", text: "Earnings will beat and the beat is not already priced in.", category: "fundamental", status: "weak", fragility: 61, evidenceFor: [], evidenceAgainst: [], unverified: [] },
+  { id: "A4", text: "The Friday dip is a pullback, not the start of a downtrend.", category: "technical", status: "holds", fragility: 38, evidenceFor: [], evidenceAgainst: [], unverified: [] },
 ];
 
 export function SampleVerdict() {

@@ -142,6 +142,7 @@ export async function runStressTest(
         id: `A${i + 1}`,
         evidenceFor: splitEvidence(a.evidenceFor),
         evidenceAgainst: splitEvidence(a.evidenceAgainst),
+        unverified: a.unverified.map((u) => u.replace(/^\[[^\]]+\]\s*/, "")).slice(0, 4),
       }));
       const guard = guardVerdict(parsedJson.verdict, list);
       if (guard.note) notices.push(guard.note);

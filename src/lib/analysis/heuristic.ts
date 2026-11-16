@@ -14,6 +14,7 @@ interface Draft {
   base: number;
   evidenceFor: string[];
   evidenceAgainst: string[];
+  unverified?: string[];
 }
 
 interface Rule {
@@ -143,7 +144,7 @@ function fillerDrafts(ctx: Ctx): Draft[] {
       category: "sentiment",
       base: 50,
       evidenceFor: [],
-      evidenceAgainst: [`${SRC} Positioning data was not available offline; this is unverified.`],
+      evidenceAgainst: [],
     },
     {
       text: `The thesis has a clear exit if it is wrong.`,
@@ -159,7 +160,7 @@ function applyMarket(d: Draft, m: MarketSnapshot | null, dir: ParsedIdea["direct
   let f = d.base;
   const tk = m?.ticker;
   if (!tk) {
-    d.evidenceAgainst.push(`${SRC} No live market data was available; this assumption is unverified.`);
+    (d.unverified ??= []).push("No live market data was available for this asset.");
     return f + 5;
   }
   const sign = dir === "short" ? -1 : 1;
@@ -186,6 +187,26 @@ function applyMarket(d: Draft, m: MarketSnapshot | null, dir: ParsedIdea["direct
       `${MKT} Hourly volatility is ${c.hourlyVolPct.toFixed(2)}%; over a short window, noise of that size can swamp the expected move.`,
     );
     if (c.hourlyVolPct > 1.5) f += 6;
+  }
+  if (d.category === "sentiment") {
+    const dv = m?.derivatives;
+    if (dv?.positionLongPct != null && dir !== "neutral") {
+      const sameSide = dir === "long" ? dv.positionLongPct : 100 - dv.positionLongPct;
+      const line = `${MKT} ${sameSide.toFixed(0)}% of open ${dv.symbol} perpetual position size is ${dir}.`;
+      if (sameSide >= 60) {
+        d.evidenceAgainst.push(line);
+        f += 10;
+      } else {
+        d.evidenceFor.push(line);
+        f -= 6;
+      }
+    }
+    if (dv) {
+      const crowd = dv.fundingRatePct > 0 ? "longs pay shorts" : dv.fundingRatePct < 0 ? "shorts pay longs" : "neutral";
+      d.evidenceFor.push(`${MKT} Funding rate is ${dv.fundingRatePct.toFixed(4)}% (${crowd}).`);
+    } else {
+      (d.unverified ??= []).push("No futures positioning data (funding, long/short ratio) for this asset.");
+    }
   }
   if (d.category === "liquidity") {
     const vol = tk.quoteVolume24h;
@@ -237,6 +258,7 @@ export function heuristicAnalysis(idea: string, parsed: ParsedIdea, market: Mark
       category: d.category,
       evidenceFor: d.evidenceFor.slice(0, 4),
       evidenceAgainst: d.evidenceAgainst.slice(0, 4),
+      unverified: (d.unverified ?? []).slice(0, 4),
       status: statusFromFragility(fragility),
       fragility,
     };

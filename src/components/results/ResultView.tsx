@@ -5,6 +5,7 @@ import { Bot, Cpu, Database, Info, Lock } from "lucide-react";
 import type { StressTestResult } from "@/lib/analysis/types";
 import { AssumptionCard } from "./AssumptionCard";
 import { FragilityChart } from "./FragilityChart";
+import { MarketContext } from "./MarketContext";
 import { MarketEvidence } from "./MarketEvidence";
 import { VerdictPanel } from "./VerdictPanel";
 
@@ -78,6 +79,8 @@ export function ResultView({ result }: { result: StressTestResult }) {
           <MarketEvidence market={result.market} />
         </div>
       </div>
+
+      <MarketContext market={result.market} />
 
       <section aria-labelledby="assumptions-heading">
         <h3 id="assumptions-heading" className="mb-3 text-sm font-semibold">
